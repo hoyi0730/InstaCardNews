@@ -169,11 +169,15 @@ function escapeHtml(text) {
     .replace(/>/g, '&gt;');
 }
 
-function formatCandidate(item) {
+function totalScore(item) {
+  return item.scores.provocative + item.scores.interest + item.scores.formatFit;
+}
+
+function formatCandidate(item, rank) {
   return [
-    `🔥 <b>[${escapeHtml(item.sourceName)}]</b> ${escapeHtml(item.title)}`,
+    `${rank}. 🔥 <b>[${escapeHtml(item.sourceName)}]</b> ${escapeHtml(item.title)}`,
     `👉 ${escapeHtml(item.suggestedHook)}`,
-    `📊 자극성 ${item.scores.provocative}/5 · 관심도 ${item.scores.interest}/5 · 카드뉴스적합 ${item.scores.formatFit}/5`,
+    `📊 자극성 ${item.scores.provocative}/5 · 관심도 ${item.scores.interest}/5 · 카드뉴스적합 ${item.scores.formatFit}/5 (합계 ${totalScore(item)}/15)`,
     `💬 ${escapeHtml(item.reason)}`,
     `🔗 ${item.link}`,
   ].join('\n');
@@ -189,10 +193,10 @@ async function notifyCandidates(bySource) {
     return;
   }
 
-  candidates.sort((a, b) => new Date(b.pubDate) - new Date(a.pubDate));
+  candidates.sort((a, b) => totalScore(b) - totalScore(a));
 
-  const header = `📰 오늘의 카드뉴스 후보 (${candidates.length}건)`;
-  const body = candidates.map(formatCandidate).join('\n\n');
+  const header = `📰 오늘의 카드뉴스 후보 (${candidates.length}건, 점수 높은 순)`;
+  const body = candidates.map((item, i) => formatCandidate(item, i + 1)).join('\n\n');
   await sendTelegramMessage(`${header}\n\n${body}`);
 
   const notifiedAt = new Date().toISOString();
