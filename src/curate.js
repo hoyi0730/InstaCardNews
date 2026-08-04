@@ -1,7 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { sources } from './sources.js';
 import { loadStore, saveStore } from './store.js';
-import { sendTelegramMessage } from './telegram.js';
 
 const MODEL = 'claude-opus-5';
 const BATCH_SIZE = 40;
@@ -105,7 +104,7 @@ async function evaluateBatch(articles) {
   return JSON.parse(textBlock.text).results;
 }
 
-async function evaluateNewArticles() {
+async function main() {
   const bySource = {};
   const unevaluated = [];
 
@@ -119,7 +118,7 @@ async function evaluateNewArticles() {
 
   if (unevaluated.length === 0) {
     console.log('No new articles to evaluate.');
-    return bySource;
+    return;
   }
 
   console.log(`Evaluating ${unevaluated.length} new article(s)...`);
@@ -159,62 +158,6 @@ async function evaluateNewArticles() {
   }
 
   console.log(`Evaluated ${resultsById.size} article(s).`);
-  return bySource;
-}
-
-function escapeHtml(text) {
-  return String(text ?? '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;');
-}
-
-function totalScore(item) {
-  return item.scores.provocative + item.scores.interest + item.scores.formatFit;
-}
-
-function formatCandidate(item, rank) {
-  return [
-    `${rank}. 🔥 <b>[${escapeHtml(item.sourceName)}]</b> ${escapeHtml(item.title)}`,
-    `👉 ${escapeHtml(item.suggestedHook)}`,
-    `📊 자극성 ${item.scores.provocative}/5 · 관심도 ${item.scores.interest}/5 · 카드뉴스적합 ${item.scores.formatFit}/5 (합계 ${totalScore(item)}/15)`,
-    `💬 ${escapeHtml(item.reason)}`,
-    `🔗 ${item.link}`,
-  ].join('\n');
-}
-
-async function notifyCandidates(bySource) {
-  const candidates = Object.values(bySource)
-    .flat()
-    .filter((item) => item.isCandidate && !item.notified);
-
-  if (candidates.length === 0) {
-    console.log('No pending candidates to notify.');
-    return;
-  }
-
-  candidates.sort((a, b) => totalScore(b) - totalScore(a));
-
-  const header = `📰 오늘의 카드뉴스 후보 (${candidates.length}건, 점수 높은 순)`;
-  const body = candidates.map((item, i) => formatCandidate(item, i + 1)).join('\n\n');
-  await sendTelegramMessage(`${header}\n\n${body}`);
-
-  const notifiedAt = new Date().toISOString();
-  for (const item of candidates) {
-    item.notified = true;
-    item.notifiedAt = notifiedAt;
-  }
-
-  for (const source of sources) {
-    saveStore(source.id, bySource[source.id]);
-  }
-
-  console.log(`Notified ${candidates.length} candidate(s) via Telegram.`);
-}
-
-async function main() {
-  const bySource = await evaluateNewArticles();
-  await notifyCandidates(bySource);
 }
 
 main().catch((err) => {

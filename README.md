@@ -1,7 +1,7 @@
 # InstaCardNews RSS Collector
 
 일본 뷰티/패션 미디어의 RSS를 매일 자동으로 수집해 `data/` 폴더에 JSON으로 누적 저장하고,
-Claude로 "한국 카드뉴스 소재로 괜찮은 후보"만 골라 Telegram으로 알려주는 봇입니다.
+Claude로 채점한 뒤 최고점 기사 1건을 골라 인스타그램 카드뉴스 이미지를 자동 생성하는 봇입니다.
 
 ## 수집 대상
 
@@ -16,8 +16,9 @@ Claude로 "한국 카드뉴스 소재로 괜찮은 후보"만 골라 Telegram으
 
 ```bash
 npm install
-npm run collect   # RSS 수집
-npm run curate     # 신규 기사 평가 + Telegram 알림 (ANTHROPIC_API_KEY, TELEGRAM_* 필요)
+npm run collect    # RSS 수집
+npm run curate     # 신규 기사 평가 (ANTHROPIC_API_KEY 필요)
+npm run cardnews   # 최고점 기사 1건 선정 + 카드뉴스 이미지 생성 (ANTHROPIC_API_KEY, Chrome 필요)
 ```
 
 `collect`는 각 소스의 RSS를 가져와 `data/<source>.json`에 병합합니다. 이미 저장된 글(guid/link 기준)은
@@ -30,10 +31,20 @@ npm run curate     # 신규 기사 평가 + Telegram 알림 (ANTHROPIC_API_KEY, 
 2. **관심도** — 한국인들이 실제로 관심 가질 만한 소재인가
 3. **카드뉴스 형식 적합성** — 인스타 카드뉴스로 만들기 좋은 구조·소재인가
 
-3가지 항목이 모두 3점(5점 만점) 이상이면 "괜찮은 후보"로 판단해 Telegram으로 전송합니다. Telegram
-메시지에서는 후보를 3가지 점수 합계(15점 만점)가 높은 순으로 정렬해 리스트업합니다. 평가 결과는
-`data/*.json`에 그대로 저장되므로, Telegram 전송에 실패해도 API를 다시 호출하지 않고 다음 실행 때
-미전송(`notified`가 없는) 후보만 재전송합니다.
+3가지 항목이 모두 3점(5점 만점) 이상이면 "괜찮은 후보"(`isCandidate: true`)로 표시합니다. 평가 결과는
+`data/*.json`에 그대로 저장됩니다.
+
+`cardnews`는 후보 중 3가지 점수 합계(15점 만점)가 가장 높은 기사 1건을 선정합니다. 동점일 경우
+인스타그램 참여도 관점(후킹력·캐러셀 구조 적합성·타겟 공감도)에서 Claude가 하나를 골라 사유와 함께
+기록합니다. 선정된 기사는 원문 전체를 다시 가져와 5~8장 분량의 한국어 카드뉴스 문구로 재구성한 뒤,
+`character/logo.png`·`character/CardNews_Finish.png`·캐릭터 이미지를 활용해 1080x1350 PNG 이미지로
+렌더링합니다. 결과는 `output/cardnews/<날짜>-<slug>/`에 `card-01.png ~ card-0N.png` + `cards.json`
+(생성된 카드 문구 원본, 템플릿만 수정해서 재렌더링하고 싶을 때 `node src/cardnews/rerender.js <폴더>`로
+API 재호출 없이 다시 그릴 수 있음)으로 저장됩니다. `output/`은 git에는 커밋되지 않습니다.
+
+카드뉴스 렌더링은 로컬에 설치된 Chrome(`C:/Program Files/Google/Chrome/Application/chrome.exe`)을
+Playwright로 구동해 HTML 템플릿을 스크린샷하는 방식입니다. 경로가 다르면 `CHROME_PATH` 환경변수로
+지정하세요.
 
 ## 데이터 스키마 (`data/*.json`)
 
@@ -57,35 +68,29 @@ npm run curate     # 신규 기사 평가 + Telegram 알림 (ANTHROPIC_API_KEY, 
   "scores": { "provocative": 4, "interest": 5, "formatFit": 3 },
   "reason": "...",          // 채점 이유 (한국어)
   "suggestedHook": "...",   // 카드뉴스용 후킹 문구 제안
-  "isCandidate": true,
-  "notified": true,
-  "notifiedAt": "..."
+  "isCandidate": true
 }
 ```
 
 ## 매일 자동 실행 (GitHub Actions)
 
 `.github/workflows/collect-rss.yml`이 매일 22:00 UTC(한국시간 07:00)에 실행되어 RSS 수집 →
-Claude 채점 → Telegram 알림 → `data/` 커밋까지 한 번에 처리합니다. `workflow_dispatch`로 수동 실행도
-가능합니다.
+Claude 채점 → `data/` 커밋까지 처리합니다. `workflow_dispatch`로 수동 실행도 가능합니다.
+
+`cardnews`(카드뉴스 이미지 생성)는 아직 이 워크플로에 포함되어 있지 않고 로컬에서 `npm run cardnews`로
+수동 실행합니다. Chrome을 헤드리스로 띄워 이미지를 렌더링해야 해서 CI에 올리려면 러너에 Chromium을
+설치하는 작업이 추가로 필요합니다 — 자동화가 필요하시면 알려주세요.
 
 GitHub에 이 저장소를 올린 뒤 아래 설정이 필요합니다:
 
 1. **Settings → Actions → General → Workflow permissions**에서
    **"Read and write permissions"**를 선택해야 워크플로가 `data/`를 커밋·push할 수 있습니다.
 2. Actions가 비활성화되어 있다면 활성화해야 합니다.
-3. **Settings → Secrets and variables → Actions → New repository secret**에서 아래 3개를 등록합니다.
+3. **Settings → Secrets and variables → Actions → New repository secret**에서 `ANTHROPIC_API_KEY`를
+   등록합니다 ([platform.claude.com](https://platform.claude.com) 콘솔에서 발급).
 
-### 필요한 Secrets
-
-| Secret 이름 | 설명 | 발급 방법 |
-| --- | --- | --- |
-| `ANTHROPIC_API_KEY` | Claude API 키 | [platform.claude.com](https://platform.claude.com) 콘솔에서 발급 |
-| `TELEGRAM_BOT_TOKEN` | Telegram 봇 토큰 | Telegram에서 [@BotFather](https://t.me/BotFather)와 대화 → `/newbot` → 안내에 따라 봇 이름 지정 → 발급되는 토큰(`123456:ABC-...` 형태) 복사 |
-| `TELEGRAM_CHAT_ID` | 알림을 받을 chat ID | 방금 만든 봇과 먼저 대화를 한 번 시작한 뒤(아무 메시지나 전송), 브라우저에서 `https://api.telegram.org/bot<봇토큰>/getUpdates`에 접속해 응답 JSON의 `message.chat.id` 값을 확인 |
-
-세 값 모두 저장소 코드에는 들어가지 않고 GitHub Secrets에만 저장되며, Actions 실행 시 환경변수로
-주입됩니다. 로컬에서 `npm run curate`를 테스트하려면 같은 이름의 환경변수를 직접 설정하면 됩니다.
+저장소 코드에는 키가 들어가지 않고 GitHub Secrets에만 저장되며, Actions 실행 시 환경변수로 주입됩니다.
+로컬에서 테스트하려면 같은 이름의 환경변수를 직접 설정하면 됩니다.
 
 ## 로컬 스케줄러로 대신 실행하고 싶다면
 
