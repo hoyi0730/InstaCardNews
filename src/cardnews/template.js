@@ -186,11 +186,28 @@ function sourceImageBlock(resolved) {
   `;
 }
 
+// Maps a card's chosen mood ("classroom" | "selfie" | "oliveyoung" | "none") to
+// the matching character asset. Returns null for "none"/unrecognized poses.
+function characterImageUri(pose) {
+  if (!pose || pose === 'none') return null;
+  return CHARACTER_URIS[pose] || null;
+}
+
+function characterInlineBlock(charUri) {
+  if (!charUri) return '';
+  return `
+    <div style="display:flex; justify-content:center; margin-top:32px;">
+      <img class="char-image" src="${charUri}" style="width:280px; height:350px; object-fit:cover;" />
+    </div>
+  `;
+}
+
 async function coverCard(card, pageLabel) {
   const resolved = await resolveSourceImage(card);
+  const charUri = characterImageUri(card.characterPose) || CHARACTER_URIS.classroom;
   const image = resolved
     ? `<img class="char-image" src="${resolved.dataUri}" alt="${escapeHtml(resolved.alt)}" style="width:640px; height:800px; object-fit:cover;" />`
-    : `<img class="char-image" src="${CHARACTER_URIS.classroom}" style="width:640px; height:800px;" />`;
+    : `<img class="char-image" src="${charUri}" style="width:640px; height:800px;" />`;
   const body = `
     <div style="display:flex; flex-direction:column; gap:32px; margin-top:64px;">
       ${card.kicker ? `<div class="kicker">${escapeHtml(card.kicker)}</div>` : ''}
@@ -205,13 +222,15 @@ async function coverCard(card, pageLabel) {
 }
 
 async function statCard(card, pageLabel) {
+  const charUri = characterImageUri(card.characterPose);
   const body = `
     <div style="display:flex; flex-direction:column; gap:28px; margin-top:56px;">
       ${card.kicker ? `<div class="kicker">${escapeHtml(card.kicker)}</div>` : ''}
       <div class="headline">${escapeHtml(card.headline)}</div>
     </div>
-    <div style="flex:1; display:flex; align-items:center; justify-content:center;">
-      <div class="headline emphasis" style="font-size:180px; line-height:1;">${escapeHtml(card.emphasis)}</div>
+    <div style="flex:1; display:flex; align-items:center; justify-content:center; gap:32px;">
+      <div class="headline emphasis" style="font-size:${charUri ? 140 : 180}px; line-height:1;">${escapeHtml(card.emphasis)}</div>
+      ${charUri ? `<img class="char-image" src="${charUri}" style="width:260px; height:340px; object-fit:cover; flex-shrink:0;" />` : ''}
     </div>
     <div class="body" style="text-align:center;">${escapeHtml(card.body)}</div>
   `;
@@ -220,6 +239,7 @@ async function statCard(card, pageLabel) {
 
 async function rankingCard(card, pageLabel) {
   const resolved = await resolveSourceImage(card);
+  const charUri = resolved ? null : characterImageUri(card.characterPose);
   const rows = (card.items || [])
     .map(
       (item, i) => `
@@ -234,7 +254,7 @@ async function rankingCard(card, pageLabel) {
       ${card.kicker ? `<div class="kicker">${escapeHtml(card.kicker)}</div>` : ''}
       <div class="headline" style="font-size:52px;">${escapeHtml(card.headline)}</div>
     </div>
-    ${resolved ? `<div style="margin-top:32px;">${sourceImageBlock(resolved)}</div>` : ''}
+    ${resolved ? `<div style="margin-top:32px;">${sourceImageBlock(resolved)}</div>` : characterInlineBlock(charUri)}
     <div class="rank-list" style="margin-top:32px;">${rows}</div>
     <div class="body" style="margin-top:auto; padding-right:120px;">${escapeHtml(card.body)}</div>
   `;
@@ -243,6 +263,7 @@ async function rankingCard(card, pageLabel) {
 
 async function listCard(card, pageLabel) {
   const resolved = await resolveSourceImage(card);
+  const charUri = resolved ? null : characterImageUri(card.characterPose);
   const rows = (card.items || [])
     .map(
       (item) => `
@@ -257,7 +278,7 @@ async function listCard(card, pageLabel) {
       ${card.kicker ? `<div class="kicker">${escapeHtml(card.kicker)}</div>` : ''}
       <div class="headline" style="font-size:52px;">${escapeHtml(card.headline)}</div>
     </div>
-    ${resolved ? `<div style="margin-top:32px;">${sourceImageBlock(resolved)}</div>` : ''}
+    ${resolved ? `<div style="margin-top:32px;">${sourceImageBlock(resolved)}</div>` : characterInlineBlock(charUri)}
     <div class="rank-list" style="margin-top:32px;">${rows}</div>
     <div class="body" style="margin-top:auto; padding-right:120px;">${escapeHtml(card.body)}</div>
   `;
@@ -266,9 +287,10 @@ async function listCard(card, pageLabel) {
 
 async function insightCard(card, pageLabel) {
   const resolved = await resolveSourceImage(card);
+  const charUri = characterImageUri(card.characterPose) || CHARACTER_URIS.selfie;
   const image = resolved
     ? `<img class="char-image" src="${resolved.dataUri}" alt="${escapeHtml(resolved.alt)}" style="width:560px; height:700px; object-fit:cover;" />`
-    : `<img class="char-image" src="${CHARACTER_URIS.selfie}" style="width:560px; height:700px;" />`;
+    : `<img class="char-image" src="${charUri}" style="width:560px; height:700px;" />`;
   const body = `
     <div style="display:flex; flex-direction:column; gap:32px; margin-top:80px;">
       ${card.kicker ? `<div class="kicker">${escapeHtml(card.kicker)}</div>` : ''}

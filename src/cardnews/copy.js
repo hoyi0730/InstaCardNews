@@ -1,6 +1,7 @@
 import Anthropic from '@anthropic-ai/sdk';
 import Parser from 'rss-parser';
 import { sources } from '../sources.js';
+import { CHARACTER_POSES } from './characters.js';
 
 const MODEL = 'claude-opus-5';
 const MAX_CARDS = 8;
@@ -55,8 +56,9 @@ const CARD_SCHEMA = {
             },
           },
           imageRef: { type: 'integer' },
+          characterPose: { type: 'string', enum: ['none', ...CHARACTER_POSES.map((p) => p.id)] },
         },
-        required: ['type', 'kicker', 'headline', 'emphasis', 'body', 'items', 'imageRef'],
+        required: ['type', 'kicker', 'headline', 'emphasis', 'body', 'items', 'imageRef', 'characterPose'],
         additionalProperties: false,
       },
     },
@@ -64,6 +66,8 @@ const CARD_SCHEMA = {
   required: ['cards'],
   additionalProperties: false,
 };
+
+const CHARACTER_POSES_TEXT = CHARACTER_POSES.map((p) => `- "${p.id}": ${p.description}`).join('\n');
 
 const SYSTEM_PROMPT = `당신은 한국 인스타그램 카드뉴스 계정 InstaCardNews의 에디터입니다.
 일본 뷰티/패션/컬처 미디어의 기사를 한국 Z세대 독자를 위한 인스타 카드뉴스로 각색합니다.
@@ -98,6 +102,13 @@ const SYSTEM_PROMPT = `당신은 한국 인스타그램 카드뉴스 계정 Inst
   있을 때만 목록 번호(1부터 시작)를 넣으세요. 관련 이미지가 없거나 목록이 비어있으면 0을 넣으세요.
   이 목록은 원문 기사가 공식 보도자료 등 출처를 명시한 이미지만 모은 것이므로, 목록에 없는 이미지를
   임의로 만들어내거나 추측하지 마세요.
+- characterPose: InstaCardNews 마스코트 캐릭터의 사진 3장 중 하나를 카드 분위기에 맞춰 고를 수 있습니다.
+${CHARACTER_POSES_TEXT}
+  각 카드의 내용·감정에 어울리는 포즈를 골라 characterPose에 넣으세요(id 그대로, 예: "classroom").
+  같은 캐러셀 안에서 매번 같은 포즈만 반복하지 말고, 카드마다 다른 포즈를 다양하게 섞어 쓰세요 — 8장 중
+  최소 2~3장은 서로 다른 포즈를 사용하는 것을 목표로 하세요. imageRef로 이미 실제 사진(보도자료 이미지)을
+  쓰는 카드에는 characterPose를 "none"으로 두세요(한 카드에 이미지를 두 개 넣지 마세요). 캐릭터 사진이
+  어울리지 않는 순수 정보 나열형 카드(ranking, list)에도 "none"으로 두어도 됩니다.
 - 반드시 지정된 JSON 스키마로만 응답하세요.`;
 
 async function fetchFullContent(item) {
