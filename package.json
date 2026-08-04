@@ -1,0 +1,13 @@
+{
+  "name": "instacardnews-rss-collector",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Daily RSS collector for J-beauty/fashion media sites, feeding InstaCardNews content pipeline",
+  "scripts": {
+    "collect": "node src/collect.js"
+  },
+  "dependencies": {
+    "rss-parser": "^3.13.0"
+  }
+}
