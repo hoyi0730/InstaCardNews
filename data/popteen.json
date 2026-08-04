@@ -181,7 +181,9 @@
     },
     "reason": "모델 실사용 코스메 리스트는 리스트형 카드뉴스에 딱 맞고 제품 이미지 활용도 좋다. 다만 일본 모델 인지도가 낮고 제품도 국내 접근성이 떨어져 자극도는 중간이다.",
     "suggestedHook": "일본 모델들이 여름에 진짜 쓰는 코스메 리스트",
-    "isCandidate": true
+    "isCandidate": true,
+    "notified": true,
+    "notifiedAt": "2026-08-04T07:47:41.208Z"
   },
   {
     "id": "https://popteen.co.jp/media/?p=88105",
@@ -208,7 +210,9 @@
     },
     "reason": "위와 동일한 시리즈로 리스트 구조는 카드뉴스에 적합하다. 새로운 정보성 이상의 반전이나 논쟁 요소는 없어 자극도는 보통이다.",
     "suggestedHook": "여름 메이크업 붕괴 막아주는 아이템만 모았다",
-    "isCandidate": true
+    "isCandidate": true,
+    "notified": true,
+    "notifiedAt": "2026-08-04T07:47:41.208Z"
   },
   {
     "id": "https://popteen.co.jp/media/?p=88006",
@@ -235,7 +239,9 @@
     },
     "reason": "헤어스타일별 15가지 분류라는 명확한 리스트 구조로 카드 분할이 매우 쉽고 이미지 활용도 좋다. 다만 유카타는 일본 특화 소재라 한국 관심도는 제한적(단, 일본 여행/축제 수요는 있음).",
     "suggestedHook": "유카타 입을 때 머리 이렇게 하면 사진이 달라진다",
-    "isCandidate": true
+    "isCandidate": true,
+    "notified": true,
+    "notifiedAt": "2026-08-04T07:47:41.208Z"
   },
   {
     "id": "https://popteen.co.jp/media/?p=87780",
@@ -264,7 +270,9 @@
     },
     "reason": "'계통별 캐릭터 세우기 가이드'는 유형 분류형 카드뉴스로 만들기 좋고 이미지 대비도 가능하다. 새학기 이미지 변신이라는 공감 포인트는 있으나 일본 모델 기반이라 임팩트가 약하다.",
     "suggestedHook": "교실에서 한눈에 튀는 애들은 이 3가지 유형이었다",
-    "isCandidate": true
+    "isCandidate": true,
+    "notified": true,
+    "notifiedAt": "2026-08-04T07:47:41.208Z"
   },
   {
     "id": "https://popteen.co.jp/media/?p=87800",
@@ -319,7 +327,9 @@
     },
     "reason": "수박·피치·키위 3가지 과일 컬러 메이크업이라는 콘셉트가 시각적으로 강하고 카드 분할도 명확하다. 다만 여름 메이크업 소재는 흔해 자극도는 중간 수준.",
     "suggestedHook": "수박 vs 피치 vs 키위, 이번 여름 당신의 컬러는?",
-    "isCandidate": true
+    "isCandidate": true,
+    "notified": true,
+    "notifiedAt": "2026-08-04T07:47:41.208Z"
   },
   {
     "id": "https://popteen.co.jp/media/?p=88150",
@@ -398,7 +408,9 @@
     },
     "reason": "'록시땅 선물 받아도 안 기쁘다?'는 논쟁적이고 반전형 후킹이 가능해 자극도가 높다. 다만 조사 결과의 구체 수치가 불명확하고 선물 문화 차이가 있어 관심도는 보통이다.",
     "suggestedHook": "\"록시땅 선물, 솔직히 별로\"…받고 싶지 않은 이유",
-    "isCandidate": true
+    "isCandidate": true,
+    "notified": true,
+    "notifiedAt": "2026-08-04T07:47:41.208Z"
   },
   {
     "id": "https://popteen.co.jp/media/?p=87543",
@@ -532,6 +544,8 @@
     },
     "reason": "'티셔츠 대신 서머니트'라는 명확한 대안 제시형 소재로 비교 카드 구성이 쉽다. 한국 여름 코디 관심사와도 겹치지만 시리즈 2편으로 임팩트는 제한적이다.",
     "suggestedHook": "여름에 티셔츠만 입으니 뻔해 보인다면, 정답은 이것",
-    "isCandidate": true
+    "isCandidate": true,
+    "notified": true,
+    "notifiedAt": "2026-08-04T07:47:41.208Z"
   }
 ]
