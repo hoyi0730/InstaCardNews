@@ -5,9 +5,11 @@
   "type": "module",
   "description": "Daily RSS collector for J-beauty/fashion media sites, feeding InstaCardNews content pipeline",
   "scripts": {
-    "collect": "node src/collect.js"
+    "collect": "node src/collect.js",
+    "curate": "node src/curate.js"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.115.0",
     "rss-parser": "^3.13.0"
   }
 }
