@@ -11,6 +11,26 @@ function toDataUri(filePath) {
   return `data:image/${ext};base64,${buf.toString('base64')}`;
 }
 
+const remoteImageCache = new Map();
+
+async function fetchRemoteImageAsDataUri(url) {
+  if (remoteImageCache.has(url)) return remoteImageCache.get(url);
+
+  try {
+    const res = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0 (compatible; InstaCardNewsBot/1.0)' } });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const buf = Buffer.from(await res.arrayBuffer());
+    const contentType = res.headers.get('content-type') || 'image/jpeg';
+    const dataUri = `data:${contentType};base64,${buf.toString('base64')}`;
+    remoteImageCache.set(url, dataUri);
+    return dataUri;
+  } catch (err) {
+    console.warn(`Could not fetch source image ${url}: ${err.message}`);
+    remoteImageCache.set(url, null);
+    return null;
+  }
+}
+
 const CHARACTER_DIR = path.resolve(import.meta.dirname, '..', '..', 'character');
 const LOGO_URI = toDataUri(path.join(CHARACTER_DIR, 'logo.png'));
 const FINISH_URI = toDataUri(path.join(CHARACTER_DIR, 'CardNews_Finish.png'));
@@ -91,6 +111,8 @@ const BASE_STYLE = `
     object-fit: cover;
     box-shadow: 0 20px 50px rgba(0,0,0,0.18);
   }
+  .source-image { width: 100%; height: 320px; object-fit: cover; border-radius: 24px; box-shadow: 0 12px 30px rgba(0,0,0,0.12); }
+  .source-caption { font-size: 20px; color: #B0B0B0; align-self: flex-end; margin-top: 8px; }
   .rank-list { display: flex; flex-direction: column; gap: 28px; }
   .rank-row {
     display: flex;
@@ -145,20 +167,44 @@ function escapeHtml(text) {
     .replace(/>/g, '&gt;');
 }
 
-function coverCard(card, pageLabel) {
+// Resolves a card's sourceImage (if any) to a data URI. Falls back to null on
+// fetch failure so callers can fall back to the default character art.
+async function resolveSourceImage(card) {
+  if (!card.sourceImage?.src) return null;
+  const dataUri = await fetchRemoteImageAsDataUri(card.sourceImage.src);
+  if (!dataUri) return null;
+  return { dataUri, alt: card.sourceImage.alt, domain: card.sourceImage.domain };
+}
+
+function sourceImageBlock(resolved) {
+  if (!resolved) return '';
+  return `
+    <div style="display:flex; flex-direction:column;">
+      <img class="source-image" src="${resolved.dataUri}" alt="${escapeHtml(resolved.alt)}" />
+      <div class="source-caption">출처: ${escapeHtml(resolved.domain)}</div>
+    </div>
+  `;
+}
+
+async function coverCard(card, pageLabel) {
+  const resolved = await resolveSourceImage(card);
+  const image = resolved
+    ? `<img class="char-image" src="${resolved.dataUri}" alt="${escapeHtml(resolved.alt)}" style="width:640px; height:800px; object-fit:cover;" />`
+    : `<img class="char-image" src="${CHARACTER_URIS.classroom}" style="width:640px; height:800px;" />`;
   const body = `
     <div style="display:flex; flex-direction:column; gap:32px; margin-top:64px;">
       ${card.kicker ? `<div class="kicker">${escapeHtml(card.kicker)}</div>` : ''}
       ${renderHeadline(card.headline, card.emphasis)}
     </div>
-    <div style="flex:1; display:flex; align-items:flex-end; justify-content:center; margin-top:40px;">
-      <img class="char-image" src="${CHARACTER_URIS.classroom}" style="width:640px; height:800px;" />
+    <div style="flex:1; display:flex; flex-direction:column; align-items:center; justify-content:flex-end; margin-top:40px;">
+      ${image}
+      ${resolved ? `<div class="source-caption" style="align-self:center; margin-top:12px;">출처: ${escapeHtml(resolved.domain)}</div>` : ''}
     </div>
   `;
   return shell(body, pageLabel);
 }
 
-function statCard(card, pageLabel) {
+async function statCard(card, pageLabel) {
   const body = `
     <div style="display:flex; flex-direction:column; gap:28px; margin-top:56px;">
       ${card.kicker ? `<div class="kicker">${escapeHtml(card.kicker)}</div>` : ''}
@@ -172,7 +218,8 @@ function statCard(card, pageLabel) {
   return shell(body, pageLabel);
 }
 
-function rankingCard(card, pageLabel) {
+async function rankingCard(card, pageLabel) {
+  const resolved = await resolveSourceImage(card);
   const rows = (card.items || [])
     .map(
       (item, i) => `
@@ -187,13 +234,15 @@ function rankingCard(card, pageLabel) {
       ${card.kicker ? `<div class="kicker">${escapeHtml(card.kicker)}</div>` : ''}
       <div class="headline" style="font-size:52px;">${escapeHtml(card.headline)}</div>
     </div>
-    <div class="rank-list" style="margin-top:56px;">${rows}</div>
+    ${resolved ? `<div style="margin-top:32px;">${sourceImageBlock(resolved)}</div>` : ''}
+    <div class="rank-list" style="margin-top:32px;">${rows}</div>
     <div class="body" style="margin-top:auto; padding-right:120px;">${escapeHtml(card.body)}</div>
   `;
   return shell(body, pageLabel);
 }
 
-function listCard(card, pageLabel) {
+async function listCard(card, pageLabel) {
+  const resolved = await resolveSourceImage(card);
   const rows = (card.items || [])
     .map(
       (item) => `
@@ -208,21 +257,27 @@ function listCard(card, pageLabel) {
       ${card.kicker ? `<div class="kicker">${escapeHtml(card.kicker)}</div>` : ''}
       <div class="headline" style="font-size:52px;">${escapeHtml(card.headline)}</div>
     </div>
-    <div class="rank-list" style="margin-top:56px;">${rows}</div>
+    ${resolved ? `<div style="margin-top:32px;">${sourceImageBlock(resolved)}</div>` : ''}
+    <div class="rank-list" style="margin-top:32px;">${rows}</div>
     <div class="body" style="margin-top:auto; padding-right:120px;">${escapeHtml(card.body)}</div>
   `;
   return shell(body, pageLabel);
 }
 
-function insightCard(card, pageLabel) {
+async function insightCard(card, pageLabel) {
+  const resolved = await resolveSourceImage(card);
+  const image = resolved
+    ? `<img class="char-image" src="${resolved.dataUri}" alt="${escapeHtml(resolved.alt)}" style="width:560px; height:700px; object-fit:cover;" />`
+    : `<img class="char-image" src="${CHARACTER_URIS.selfie}" style="width:560px; height:700px;" />`;
   const body = `
     <div style="display:flex; flex-direction:column; gap:32px; margin-top:80px;">
       ${card.kicker ? `<div class="kicker">${escapeHtml(card.kicker)}</div>` : ''}
       ${renderHeadline(card.headline, card.emphasis)}
       <div class="body">${escapeHtml(card.body)}</div>
     </div>
-    <div style="flex:1; display:flex; align-items:flex-end; justify-content:center;">
-      <img class="char-image" src="${CHARACTER_URIS.selfie}" style="width:560px; height:700px;" />
+    <div style="flex:1; display:flex; flex-direction:column; align-items:center; justify-content:flex-end;">
+      ${image}
+      ${resolved ? `<div class="source-caption" style="align-self:center; margin-top:12px;">출처: ${escapeHtml(resolved.domain)}</div>` : ''}
     </div>
   `;
   return shell(body, pageLabel);
@@ -249,12 +304,13 @@ const RENDERERS = {
   insight: insightCard,
 };
 
-export function buildCardHtmlPages(cards) {
+export async function buildCardHtmlPages(cards) {
   const total = cards.length + 1; // +1 for the finish card
-  const pages = cards.map((card, i) => {
-    const renderer = RENDERERS[card.type] || insightCard;
-    return renderer(card, `${i + 1} / ${total}`);
-  });
+  const pages = [];
+  for (let i = 0; i < cards.length; i++) {
+    const renderer = RENDERERS[cards[i].type] || insightCard;
+    pages.push(await renderer(cards[i], `${i + 1} / ${total}`));
+  }
   pages.push(finishCard());
   return pages;
 }

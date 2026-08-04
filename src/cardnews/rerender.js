@@ -10,6 +10,6 @@ if (!outDir) {
 }
 
 const { cards } = JSON.parse(fs.readFileSync(path.join(outDir, 'cards.json'), 'utf-8'));
-const htmlPages = buildCardHtmlPages(cards);
+const htmlPages = await buildCardHtmlPages(cards);
 const files = await renderCardsToPng(htmlPages, outDir);
 console.log(`Re-rendered ${files.length} image(s) in ${outDir}`);

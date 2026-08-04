@@ -7,6 +7,28 @@ const MAX_CARDS = 8;
 const client = new Anthropic();
 const parser = new Parser({ headers: { 'User-Agent': 'Mozilla/5.0 (compatible; InstaCardNewsBot/1.0)' } });
 
+// Only reuse images the source article itself attributes to a wire/press-release
+// service (i.e. the outlet's own credited source explicitly meant for media pickup).
+// Stock photography (snapmart.jp) and retail product shots (amzn.asia) are excluded —
+// those licenses don't transfer to a separate commercial account.
+const ALLOWED_IMAGE_DOMAINS = new Set(['prtimes.jp']);
+
+function extractSourcedImages(html) {
+  const images = [];
+  const imgRegex = /<img\b[^>]*?\bsrc=["']([^"']+)["'][^>]*?\balt=["']([^"']*)["'][^>]*>/g;
+  let match;
+  while ((match = imgRegex.exec(html))) {
+    const [full, src, alt] = match;
+    const tail = html.slice(match.index + full.length, match.index + full.length + 400);
+    const relMatch = tail.match(/<span class="rel">出典<a[^>]*href=["']([^"']+)["'][^>]*>([^<]+)<\/a>/);
+    if (!relMatch) continue;
+    const domain = relMatch[2].trim();
+    if (!ALLOWED_IMAGE_DOMAINS.has(domain)) continue;
+    images.push({ src, alt: alt.replace(/\s+/g, ' ').trim(), domain });
+  }
+  return images;
+}
+
 const CARD_SCHEMA = {
   type: 'object',
   properties: {
@@ -32,8 +54,9 @@ const CARD_SCHEMA = {
               additionalProperties: false,
             },
           },
+          imageRef: { type: 'integer' },
         },
-        required: ['type', 'kicker', 'headline', 'emphasis', 'body', 'items'],
+        required: ['type', 'kicker', 'headline', 'emphasis', 'body', 'items', 'imageRef'],
         additionalProperties: false,
       },
     },
@@ -71,6 +94,10 @@ const SYSTEM_PROMPT = `당신은 한국 인스타그램 카드뉴스 계정 Inst
   - "insight": 마무리 인사이트 카드 (항상 마지막 카드). headline=핵심 한 줄 정리, body=부연 설명
 - 각 필드는 스마트폰 화면에서 한눈에 읽히도록 간결하게: headline은 20자 내외 x 2줄 이내, body는 60자 내외.
 - 사용하지 않는 필드는 빈 문자열 "" 또는 빈 배열 []로 채우세요 (모든 필드는 항상 포함되어야 합니다).
+- imageRef: 사용자 메시지에 "재사용 가능한 이미지 목록"이 제공되면, 그 카드의 주제와 실제로 관련된 이미지가
+  있을 때만 목록 번호(1부터 시작)를 넣으세요. 관련 이미지가 없거나 목록이 비어있으면 0을 넣으세요.
+  이 목록은 원문 기사가 공식 보도자료 등 출처를 명시한 이미지만 모은 것이므로, 목록에 없는 이미지를
+  임의로 만들어내거나 추측하지 마세요.
 - 반드시 지정된 JSON 스키마로만 응답하세요.`;
 
 async function fetchFullContent(item) {
@@ -80,35 +107,47 @@ async function fetchFullContent(item) {
   if (!match) {
     throw new Error(`Could not find "${item.title}" in the current ${source.id} feed (may have scrolled off).`);
   }
-  return (match['content:encoded'] || match.content || '').slice(0, 20000);
+  return match['content:encoded'] || match.content || '';
+}
+
+function buildUserMessage(item, fullContent, sourcedImages) {
+  const imageList = sourcedImages.length
+    ? sourcedImages.map((img, i) => `${i + 1}. ${img.alt || '(설명 없음)'} (출처: ${img.domain})`).join('\n')
+    : '(없음)';
+
+  return `제목: ${item.title}\n출처: ${item.sourceName}\n\n재사용 가능한 이미지 목록:\n${imageList}\n\n본문(HTML):\n${fullContent.slice(0, 20000)}`;
+}
+
+function resolveImageRefs(cards, sourcedImages) {
+  return cards.map(({ imageRef, ...card }) => ({
+    ...card,
+    sourceImage: imageRef > 0 ? sourcedImages[imageRef - 1] || null : null,
+  }));
 }
 
 export async function generateCardCopy(item) {
   const fullContent = await fetchFullContent(item);
+  const sourcedImages = extractSourcedImages(fullContent);
 
   const response = await client.messages.create({
     model: MODEL,
     max_tokens: 8000,
     system: SYSTEM_PROMPT,
     output_config: { format: { type: 'json_schema', schema: CARD_SCHEMA } },
-    messages: [
-      {
-        role: 'user',
-        content: `제목: ${item.title}\n출처: ${item.sourceName}\n\n본문(HTML):\n${fullContent}`,
-      },
-    ],
+    messages: [{ role: 'user', content: buildUserMessage(item, fullContent, sourcedImages) }],
   });
 
   const textBlock = response.content.find((b) => b.type === 'text');
   if (!textBlock) {
     throw new Error(`No text block in response (stop_reason=${response.stop_reason})`);
   }
-  const cards = JSON.parse(textBlock.text).cards;
+  let cards = JSON.parse(textBlock.text).cards;
 
   if (cards.length > MAX_CARDS) {
     console.warn(`Model returned ${cards.length} cards; trimming to ${MAX_CARDS} (keeping the closing card).`);
     const closing = cards[cards.length - 1];
-    return [...cards.slice(0, MAX_CARDS - 1), closing];
+    cards = [...cards.slice(0, MAX_CARDS - 1), closing];
   }
-  return cards;
+
+  return resolveImageRefs(cards, sourcedImages);
 }

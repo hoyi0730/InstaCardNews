@@ -28,7 +28,7 @@ async function main() {
   const cards = await generateCardCopy(winner);
   console.log(`Generated ${cards.length} content card(s) + 1 finish card.`);
 
-  const htmlPages = buildCardHtmlPages(cards);
+  const htmlPages = await buildCardHtmlPages(cards);
 
   const outDir = path.resolve(
     import.meta.dirname,
